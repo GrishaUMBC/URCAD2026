@@ -30,6 +30,11 @@ CRYPTO_DATA  = "https://data.alpaca.markets/v1beta3/crypto/us"
 HEADERS      = trading_headers(CFG)
 TIMEOUT      = 10
 
+# Persistent session — reuses TCP+TLS connections so per-second loops
+# don't pay a fresh handshake (~hundreds of ms to seconds) on every call.
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+
 
 # ─────────────────────────── primitive HTTP helpers ──────────────────────
 def _check(r: requests.Response) -> requests.Response:
@@ -41,17 +46,15 @@ def _check(r: requests.Response) -> requests.Response:
 
 
 def get(path: str, params: dict | None = None, base: str = TRADING_URL) -> dict:
-    return _check(requests.get(base + path, headers=HEADERS,
-                               params=params, timeout=TIMEOUT)).json()
+    return _check(SESSION.get(base + path, params=params, timeout=TIMEOUT)).json()
 
 
 def post(path: str, body: dict, base: str = TRADING_URL) -> dict:
-    return _check(requests.post(base + path, headers=HEADERS,
-                                json=body, timeout=TIMEOUT)).json()
+    return _check(SESSION.post(base + path, json=body, timeout=TIMEOUT)).json()
 
 
 def delete(path: str, base: str = TRADING_URL) -> None:
-    r = requests.delete(base + path, headers=HEADERS, timeout=TIMEOUT)
+    r = SESSION.delete(base + path, timeout=TIMEOUT)
     if r.status_code not in (200, 204):
         _check(r)
 
@@ -103,51 +106,56 @@ def close_all_positions() -> None:
 
 
 # ────────────────────────────── orders ──────────────────────────────────
+def _default_tif(symbol: str) -> str:
+    """Crypto only accepts gtc/ioc; equity defaults to day."""
+    return "gtc" if "/" in symbol else "day"
+
+
 def submit_market_qty(symbol: str, qty: float, side: str,
-                      tif: str = "day") -> dict:
+                      tif: str | None = None) -> dict:
     """Whole or fractional share market order."""
     return post("/orders", {
         "symbol":        symbol,
         "qty":           f"{qty}",
         "side":          side,
         "type":          "market",
-        "time_in_force": tif,
+        "time_in_force": tif or _default_tif(symbol),
     })
 
 
 def submit_market_notional(symbol: str, notional: float, side: str,
-                           tif: str = "day") -> dict:
+                           tif: str | None = None) -> dict:
     """Notional (dollar-amount) market order."""
     return post("/orders", {
         "symbol":        symbol,
         "notional":      f"{notional:.2f}",
         "side":          side,
         "type":          "market",
-        "time_in_force": tif,
+        "time_in_force": tif or _default_tif(symbol),
     })
 
 
 def submit_limit(symbol: str, qty: float, side: str, limit_price: float,
-                 tif: str = "day") -> dict:
+                 tif: str | None = None) -> dict:
     return post("/orders", {
         "symbol":        symbol,
         "qty":           f"{qty}",
         "side":          side,
         "type":          "limit",
         "limit_price":   f"{limit_price:.4f}",
-        "time_in_force": tif,
+        "time_in_force": tif or _default_tif(symbol),
     })
 
 
 def submit_trailing_stop(symbol: str, qty: float, side: str,
-                         trail_percent: float, tif: str = "day") -> dict:
+                         trail_percent: float, tif: str | None = None) -> dict:
     return post("/orders", {
         "symbol":        symbol,
         "qty":           f"{qty}",
         "side":          side,
         "type":          "trailing_stop",
         "trail_percent": f"{trail_percent}",
-        "time_in_force": tif,
+        "time_in_force": tif or _default_tif(symbol),
     })
 
 
