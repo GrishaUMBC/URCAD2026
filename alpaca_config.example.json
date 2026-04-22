@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy this file to alpaca_config.json and fill in your PAPER trading credentials from https://alpaca.markets. NEVER commit alpaca_config.json. NEVER use live-trading credentials with this code.",
+  "endpoint": "https://paper-api.alpaca.markets/v2",
+  "api_key": "YOUR_ALPACA_PAPER_API_KEY_HERE",
+  "api_secret": "YOUR_ALPACA_PAPER_API_SECRET_HERE",
+  "account_type": "paper"
+}
